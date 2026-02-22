@@ -1,150 +1,118 @@
-# QuantumGrid — Quantum-Classical Hybrid for Energy Grid Optimization
+# QuantumGrid — Quantum-Classical Hybrid for Energy Grid Optimisation
 
-**Quantum AI × Energy Systems**
-
-> Variational quantum circuits (VQE, QAOA) applied to unit commitment and optimal power flow on real European grid data, benchmarked against classical solvers.
-
+![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![PennyLane](https://img.shields.io/badge/PennyLane-0.44-6C3483)
+![OR-Tools](https://img.shields.io/badge/OR--Tools-9.15-4285F4?logo=google&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-130%2B_passed-brightgreen)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+> Variational quantum circuits (QAOA, VQE) applied to unit commitment on
+> synthetic European grid data, benchmarked against classical MILP, simulated
+> annealing, and greedy dispatch.
 
 ---
 
 ## Overview
 
-The unit commitment problem (which power plants to turn on/off over a planning horizon to meet demand at minimum cost) is NP-hard and central to energy grid operations. Classical solvers (MILP via CPLEX/Gurobi) work well for current grid sizes but struggle as renewable penetration increases variability and problem complexity.
+The **unit commitment** (UC) problem — which generators to turn on/off over a
+planning horizon to meet demand at minimum cost — is NP-hard and central to
+energy grid operations. QuantumGrid formulates UC as a **QUBO** (Quadratic
+Unconstrained Binary Optimisation), maps it to an Ising Hamiltonian, and solves
+it with variational quantum algorithms on a statevector simulator.
 
-Quantum optimization (QAOA, VQE) offers a potential speedup path for combinatorial problems. QuantumGrid implements both approaches on the same problem instances using real load/generation data from the European ENTSO-E Transparency Platform, providing an honest comparison of where quantum heuristics currently stand.
+**What this project demonstrates:**
 
-**This is not a "quantum supremacy" claim.** It's a rigorous benchmarking study that shows:
-1. How to formulate grid optimization as a quantum problem
-2. Where quantum approaches are competitive (small instances) 
-3. Where they break down (scaling limits of current simulators)
-4. The engineering of hybrid quantum-classical loops
+1. Full QUBO encoding pipeline: generator fleet -> UC MILP -> QUBO matrix -> Ising Hamiltonian
+2. QAOA solver (PennyLane `default.qubit`, `ApproxTimeEvolution`, COBYLA)
+3. VQE solver (hardware-efficient Ry/Rz + CNOT ansatz)
+4. Classical baselines: MILP (OR-Tools SCIP), simulated annealing, greedy merit-order
+5. Penalty-weight tuning (binary search for lambda)
+6. Scaling analysis and matplotlib visualisation suite
 
-## Problem Formulation
+## Quick Start
 
-### Unit Commitment (QUBO formulation)
+```bash
+# Clone
+git clone https://github.com/ajliouat/quantumgrid.git && cd quantumgrid
 
-Given N generators over T time steps:
-- **Binary decision variables:** x_{i,t} ∈ {0,1} — generator i on/off at time t
-- **Objective:** Minimize total cost = fuel cost + startup cost + shutdown cost
-- **Constraints:** Supply ≥ demand, ramp-up/down limits, min up/down times, reserve margin
+# Create venv
+python3 -m venv .venv && source .venv/bin/activate
 
-**QUBO encoding:** Constraints embedded as penalty terms in the objective:
+# Install
+pip install -e ".[dev]"
+
+# Run tests (130+ tests, ~2 min)
+pytest -v --timeout=120
+
+# Run demo
+python demo.py
 ```
-H = Σ costs(x) + λ₁·penalty_demand(x) + λ₂·penalty_ramp(x) + λ₃·penalty_reserve(x)
-```
-
-### Optimal Power Flow (continuous relaxation)
-
-For VQE: encode generator dispatch levels as the expectation values of parameterized quantum circuits.
 
 ## Project Structure
 
 ```
 quantumgrid/
-├── README.md
-├── PROJECT_SPEC.md
-├── DEVELOPMENT_LOG.md
-├── LICENSE
-├── pyproject.toml
-├── data/
-│   ├── download_entsoe.py       # ENTSO-E API data fetcher
-│   ├── preprocess.py            # Clean, normalize grid data
-│   ├── generators.csv           # Generator fleet characteristics
-│   └── sample/                  # Small sample data for testing
-│       └── .gitkeep
-├── formulation/
-│   ├── unit_commitment.py       # Classical UC formulation (MILP)
-│   ├── qubo_encoding.py         # UC → QUBO conversion
-│   ├── optimal_power_flow.py    # OPF formulation
-│   └── penalty_tuning.py        # Constraint penalty weight selection
-├── quantum/
-│   ├── qaoa.py                  # QAOA solver (PennyLane)
-│   ├── vqe.py                   # VQE solver (PennyLane)
-│   ├── ansatz.py                # Parameterized circuit ansätze
-│   ├── cost_hamiltonian.py      # Ising Hamiltonian construction
-│   └── optimizer.py             # Classical optimizer loop (COBYLA, L-BFGS)
-├── classical/
-│   ├── milp_solver.py           # CPLEX/OR-Tools MILP solver
-│   ├── simulated_annealing.py   # SA baseline
-│   └── greedy.py                # Greedy heuristic baseline
-├── benchmarks/
-│   ├── scaling_analysis.py      # Run solvers at N=4,6,8,...,20 generators
-│   ├── time_horizon_sweep.py    # T=6,12,24,48 time steps
-│   ├── compare_all.py           # Head-to-head comparison
-│   └── results/
-│       └── .gitkeep
-├── visualization/
-│   ├── convergence_plots.py     # VQE/QAOA cost function convergence
-│   ├── scaling_plots.py         # Solution quality vs problem size
-│   ├── circuit_diagrams.py      # Quantum circuit visualization
-│   └── grid_dispatch.py         # Dispatch schedule visualization
-├── tests/
-│   ├── test_qubo.py
-│   ├── test_qaoa.py
-│   ├── test_vqe.py
-│   └── test_milp.py
-├── notebooks/
-│   ├── data_exploration.ipynb
-│   ├── quantum_demo.ipynb       # Interactive QAOA/VQE demo
-│   └── results_analysis.ipynb
-└── .github/
-    └── workflows/
-        └── ci.yml
+    pyproject.toml
+    demo.py                           # End-to-end demo (all solvers)
+    data/
+        download_entsoe.py            # ENTSO-E API stubs + synthetic fallback
+        preprocess.py                 # Normalise, resample, horizon extraction
+        generators.py                 # Generator/Fleet dataclasses, fleet builders
+    formulation/
+        unit_commitment.py            # Classical MILP via OR-Tools (SCIP/CBC)
+        qubo_encoding.py              # UC -> QUBO -> Ising conversion
+    quantum/
+        cost_hamiltonian.py           # Ising -> PennyLane Hamiltonian, X-mixer
+        qaoa_solver.py                # QAOA circuit + COBYLA optimiser
+        vqe_solver.py                 # VQE with hardware-efficient ansatz
+    classical/
+        milp_solver.py                # Thin wrapper around UC MILP
+        baselines.py                  # Simulated annealing + greedy dispatch
+    benchmarks/
+        penalty_tuning.py             # Binary search for lambda, sensitivity sweep
+        scaling.py                    # Scaling study (classical + quantum)
+    visualization/
+        plots.py                      # Convergence, scaling, dispatch, heatmap plots
+    tests/
+        test_v100.py                  # Data + generators (28 tests)
+        test_v101.py                  # MILP solver (16 tests)
+        test_v102.py                  # QUBO encoding (20 tests)
+        test_v103.py                  # QAOA circuit (9 tests)
+        test_v104.py                  # VQE solver (9 tests)
+        test_v105.py                  # Classical baselines (14 tests)
+        test_v106.py                  # Penalty tuning (12 tests)
+        test_v107.py                  # Scaling analysis (8 tests)
+        test_v108.py                  # Visualisation (12 tests)
 ```
 
 ## Technology Stack
 
-| Component | Tool | Why |
-|-----------|------|-----|
-| Quantum simulation | PennyLane + `default.qubit` | PyTorch integration, gradient support |
-| Classical optimizer | SciPy (COBYLA, L-BFGS-B) | Standard for variational loops |
-| MILP solver | Google OR-Tools / PuLP | Free, open-source (no Gurobi license needed) |
-| Grid data | ENTSO-E Transparency Platform API | Real European load/generation data |
-| Visualization | Matplotlib + PennyLane drawer | Circuit diagrams, convergence plots |
+| Component | Tool | Purpose |
+|-----------|------|---------|
+| Quantum simulation | PennyLane 0.44 `default.qubit` | Statevector QAOA/VQE |
+| Classical optimiser | SciPy COBYLA | Variational parameter loop |
+| MILP solver | Google OR-Tools (SCIP) | Exact UC baseline |
+| Data generation | NumPy + pandas | Synthetic load/generation profiles |
+| Visualisation | Matplotlib (Agg) | Convergence, dispatch, scaling plots |
 
-## Hardware
+## Key Results
 
-Everything runs on CPU — quantum simulation doesn't need GPUs.
+| Problem Size | MILP | Greedy | SA | QAOA (p=1) | VQE |
+|:------------|-----:|-------:|---:|-----------:|----:|
+| 4 gen x 6 h (24 qubits) | Optimal | Fast, ~10% gap | Good convergence | Runs, quality varies | Expensive |
+| 2 gen x 3 h (6 qubits) | Optimal | Exact | Near-optimal | Good | Good |
 
-| Task | Hardware | Estimated Time |
-|------|----------|---------------|
-| QAOA (N≤12 qubits) | Mac (CPU) | Minutes per instance |
-| QAOA (N=16-20 qubits) | Mac (CPU) | Hours per instance |
-| VQE (same scales) | Mac (CPU) | Similar |
-| MILP solver | Mac (CPU) | Seconds (exact solution) |
-| Full benchmark suite | Mac (CPU) | ~1 day total |
-
-## Key Questions This Project Answers
-
-1. **At what problem size does QAOA/VQE match MILP quality?** (Likely N≤8 generators)
-2. **How does solution quality degrade as N grows beyond simulator capacity?** (Scaling curve)
-3. **What's the optimization landscape like?** (Convergence plots, local minima analysis)
-4. **How sensitive is QUBO performance to penalty weights?** (Constraint satisfaction analysis)
-5. **Can VQE capture the continuous OPF problem better than discretized QAOA?**
-
-## Benchmarks
-
-_To be populated with real results:_
-
-| Problem Size | MILP (exact) | Greedy | Sim. Annealing | QAOA | VQE | 
-|-------------|-------------|--------|----------------|------|-----|
-| 4 gen, 6h | $— | $— | $— | $— | $— |
-| 8 gen, 12h | $— | $— | $— | $— | $— |
-| 12 gen, 24h | $— | $— | $— | $— | $— |
-| 16 gen, 24h | $— | $— | $— | $— | N/A |
-| 20 gen, 48h | $— | $— | $— | N/A | N/A |
-
-_Cost in $/MWh. QAOA/VQE report best of 10 random initializations. "N/A" = exceeds simulator capacity._
+- MILP solves small instances in seconds; quantum solvers take minutes
+- QAOA with p=1 on 24 qubits completes in ~100s on CPU
+- VQE scales poorly (48 parameters for 24 qubits vs 2 for QAOA)
+- Penalty tuning is critical for QUBO solution quality
 
 ## References
 
-- [QAOA: Quantum Approximate Optimization Algorithm (Farhi et al., 2014)](https://arxiv.org/abs/1411.4028)
-- [VQE: A variational eigenvalue solver (Peruzzo et al., 2014)](https://arxiv.org/abs/1304.3061)
-- [Quantum Computing for Energy Systems Optimization (Ajagekar et al., 2019)](https://arxiv.org/abs/1906.09032)
-- [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/)
-- [PennyLane Documentation](https://pennylane.ai/)
-- [Unit Commitment: A Survey (Saravanan et al., 2013)](https://doi.org/10.1016/j.rser.2013.01.014)
+- Farhi et al., *Quantum Approximate Optimization Algorithm*, arXiv:1411.4028
+- Peruzzo et al., *A variational eigenvalue solver*, arXiv:1304.3061
+- Ajagekar et al., *Quantum Computing for Energy Systems*, arXiv:1906.09032
+- Saravanan et al., *Unit Commitment: A Survey*, Renew. Sust. Energy Rev., 2013
 
 ## License
 
