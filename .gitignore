@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+*.pt
+*.csv
+benchmarks/results/*.json
+benchmarks/results/*.csv
+data/sample/*.csv
+!data/sample/.gitkeep
+visualization/output/
